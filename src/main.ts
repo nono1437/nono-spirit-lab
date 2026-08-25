@@ -4,6 +4,7 @@ type ElementType = '冰' | '钢' | '无'
 type SkillKind = '物理' | '魔法' | '辅助' | '绝招'
 type StatusId = 'taunt' | 'seal'
 type FormId = 'default' | 'overdrive'
+type DrawerId = 'lab' | 'log' | null
 
 type StatusState = {
   id: StatusId
@@ -50,7 +51,7 @@ type BattleState = {
   forceCrit: boolean
 }
 
-const VERSION = 'v0.1.1 · alpha'
+const VERSION = 'v0.2.0 · landscape alpha'
 
 const baseSkills: Skill[] = [
   {
@@ -127,7 +128,6 @@ const statusMeta: Record<StatusId, { name: string; description: string }> = {
 }
 
 const allSkills = [...baseSkills, ultimateDefault, ultimateOverdrive]
-
 const initialPp = () => Object.fromEntries(allSkills.map(skill => [skill.id, skill.maxPp]))
 
 const makeState = (): BattleState => ({
@@ -157,12 +157,13 @@ const makeState = (): BattleState => ({
     statuses: [],
   },
   pp: initialPp(),
-  log: ['训练场连接完成。试作体进入战斗。'],
+  log: ['训练场连接完成。请选择本回合操作。'],
   locked: false,
   forceCrit: false,
 })
 
 let state = makeState()
+let uiDrawer: DrawerId = null
 const app = document.querySelector<HTMLDivElement>('#app')!
 
 function clamp(value: number, min: number, max: number) {
@@ -183,8 +184,8 @@ function formLabel() {
 
 function passiveLabel() {
   return state.player.form === 'overdrive'
-    ? '突破：暴击率 +50%'
-    : '回响：每次受到伤害后恢复 6% 最大生命'
+    ? '突破 · 暴击率提高'
+    : '回响 · 每段受伤后恢复6%生命'
 }
 
 function statusChip(status: StatusState) {
@@ -197,123 +198,137 @@ function skillButton(skill: Skill, index: number) {
   const elementClass = skill.element === '冰' ? 'ice' : skill.element === '钢' ? 'steel' : 'neutral'
   const disabled = state.locked || pp <= 0 || state.player.hp <= 0 || state.enemy.hp <= 0
   return `
-    <button class="skill-card ${elementClass} ${skill.kind === '绝招' ? 'ultimate-card' : ''}" data-skill="${skill.id}" ${disabled ? 'disabled' : ''}>
+    <button class="skill-card ${elementClass}" data-skill="${skill.id}" ${disabled ? 'disabled' : ''}>
       <span class="skill-index">${index}</span>
       <span class="skill-main">
         <strong>${skill.name}</strong>
-        <small>${skill.element} · ${skill.kind}${skill.power ? ` · 威力 ${skill.power}` : ''}</small>
+        <small>${skill.kind}${skill.power ? ` · ${skill.power}` : ''}</small>
       </span>
-      <span class="pp">PP ${pp}/${skill.maxPp}</span>
+      <span class="pp">${pp}/${skill.maxPp}</span>
     </button>
+  `
+}
+
+function ultimateButton(skill: Skill) {
+  const pp = state.pp[skill.id] ?? 0
+  const disabled = state.locked || pp <= 0 || state.player.hp <= 0 || state.enemy.hp <= 0
+  return `
+    <button class="ultimate-orb" data-skill="${skill.id}" ${disabled ? 'disabled' : ''} title="${skill.description}">
+      <span class="ultimate-glyph">✦</span>
+      <strong>${skill.name}</strong>
+      <small>绝招 · PP ${pp}/${skill.maxPp}</small>
+    </button>
+  `
+}
+
+function renderDrawer() {
+  if (!uiDrawer) return ''
+
+  if (uiDrawer === 'lab') {
+    return `
+      <div class="drawer-backdrop" id="drawerBackdrop">
+        <aside class="drawer-card">
+          <div class="drawer-head"><div><span class="eyebrow">DEBUG TOOLS</span><h3>🧪 nono Lab</h3></div><button id="closeDrawer">×</button></div>
+          <div class="lab-grid">
+            <button data-lab="heal">双方满血</button>
+            <button data-lab="pp">恢复 PP</button>
+            <button data-lab="crit">${state.forceCrit ? '关闭强制暴击' : '强制下次暴击'}</button>
+            <button data-lab="transform">切换形态</button>
+            <button data-lab="hit1">敌方攻击 1 次</button>
+            <button data-lab="hit5">敌方连续攻击 5 次</button>
+            <button data-lab="status">给敌方挑衅+封印</button>
+            <button data-lab="support">测试敌方辅助技</button>
+            <button data-lab="switch">测试敌方换宠</button>
+          </div>
+        </aside>
+      </div>
+    `
+  }
+
+  return `
+    <div class="drawer-backdrop" id="drawerBackdrop">
+      <aside class="drawer-card log-drawer">
+        <div class="drawer-head"><div><span class="eyebrow">BATTLE LOG</span><h3>战斗日志</h3></div><div class="drawer-actions"><button id="clearLog">清空</button><button id="closeDrawer">×</button></div></div>
+        <div class="log-list">${state.log.slice().reverse().map(line => `<p>${line}</p>`).join('')}</div>
+      </aside>
+    </div>
   `
 }
 
 function render() {
   const enemyStatuses = state.enemy.statuses.length
     ? state.enemy.statuses.map(statusChip).join('')
-    : '<span class="status-empty">无异常状态</span>'
+    : '<span class="status-empty">状态正常</span>'
+  const latestLog = state.log[state.log.length - 1] ?? '等待操作'
 
   app.innerHTML = `
     <main class="game-shell">
+      <section class="portrait-gate">
+        <div class="rotate-phone">↻</div>
+        <strong>请将手机横过来</strong>
+        <span>nono Spirit Lab 使用横屏战斗界面</span>
+      </section>
+
       <header class="topbar">
-        <div>
-          <span class="eyebrow">nono Spirit Lab</span>
-          <h1>精灵训练场</h1>
-        </div>
+        <div class="brand"><span class="brand-mark">✦</span><div><strong>nono Spirit Lab</strong><small>${VERSION}</small></div></div>
+        <div class="round-info"><span>当前回合</span><b>${state.turn}</b></div>
         <div class="top-actions">
-          <span class="turn">回合 ${state.turn}</span>
+          <button class="ghost" id="fullscreenBtn">全屏</button>
           <button class="ghost" id="resetBtn">重置</button>
         </div>
       </header>
 
-      <section class="arena">
-        <article class="fighter player ${state.player.form === 'overdrive' ? 'war' : ''}">
-          <div class="fighter-head">
-            <div>
-              <span class="side-label">我方</span>
-              <h2>${state.player.name}</h2>
-              <p>${formLabel()} · ${passiveLabel()}</p>
-            </div>
-            <span class="level">Lv.100</span>
-          </div>
-          <div class="hp-row">
-            <div class="hp-track"><i style="width:${hpPercent(state.player)}%"></i></div>
-            <span>${Math.max(0, Math.round(state.player.hp))} / ${state.player.maxHp}</span>
-          </div>
-          <div class="spirit-stage player-stage">
-            <div class="aura aura-one"></div>
-            <div class="aura aura-two"></div>
-            <div class="spirit-avatar star-king">
-              <span class="blade blade-left"></span>
-              <span class="core">✦</span>
-              <span class="blade blade-right"></span>
-            </div>
-            <div class="ground-ring"></div>
-          </div>
-          <div class="stats-line">
-            <span>物攻 ${state.player.attack}</span><span>魔攻 ${state.player.magic}</span><span>速度 ${state.player.speed}</span>
-          </div>
-        </article>
+      <section class="battlefield">
+        <div class="field-light field-light-a"></div>
+        <div class="field-light field-light-b"></div>
+        <div class="arena-ring"></div>
+        <div class="arena-core">✦</div>
 
-        <div class="versus"><span>VS</span><small>TRAINING</small></div>
-
-        <article class="fighter enemy">
-          <div class="fighter-head enemy-head">
-            <span class="level">Lv.100</span>
-            <div>
-              <span class="side-label">训练目标</span>
-              <h2>${state.enemy.name}</h2>
-              <p>高耐久测试单位 · 自动反击</p>
-            </div>
-          </div>
-          <div class="hp-row enemy-hp">
-            <span>${Math.max(0, Math.round(state.enemy.hp))} / ${state.enemy.maxHp}</span>
-            <div class="hp-track"><i style="width:${hpPercent(state.enemy)}%"></i></div>
-          </div>
-          <div class="spirit-stage enemy-stage">
-            <div class="dummy-orb"><span></span></div>
-            <div class="ground-ring"></div>
-          </div>
-          <div class="enemy-status">${enemyStatuses}</div>
-        </article>
-      </section>
-
-      <section class="control-panel">
-        <div class="skill-panel">
-          <div class="panel-title">
-            <div><span class="eyebrow">本回合操作</span><h3>选择技能</h3></div>
-            <span class="hint">4技能 + 1绝招 · 训练核心会自动反击</span>
-          </div>
-          <div class="skills-grid">
-            ${baseSkills.map((skill, index) => skillButton(skill, index + 1)).join('')}
-          </div>
-          <div class="ultimate-wrap">${skillButton(currentUltimate(), 5)}</div>
+        <div class="fighter-hud player-hud">
+          <div class="hud-title"><span class="side-label">我方 · Lv.100</span><strong>${state.player.name}</strong></div>
+          <div class="hud-hp"><div class="hp-track"><i style="width:${hpPercent(state.player)}%"></i></div><span>${Math.max(0, Math.round(state.player.hp))}/${state.player.maxHp}</span></div>
+          <small>${formLabel()} · ${passiveLabel()}</small>
         </div>
 
-        <aside class="side-panel">
-          <details open>
-            <summary>🧪 nono Lab</summary>
-            <div class="lab-grid">
-              <button data-lab="heal">双方满血</button>
-              <button data-lab="pp">恢复 PP</button>
-              <button data-lab="crit">${state.forceCrit ? '关闭强制暴击' : '强制下次暴击'}</button>
-              <button data-lab="transform">切换形态</button>
-              <button data-lab="hit1">敌方攻击 1 次</button>
-              <button data-lab="hit5">敌方连续攻击 5 次</button>
-              <button data-lab="status">给敌方挑衅+封印</button>
-              <button data-lab="support">测试敌方辅助技</button>
-              <button data-lab="switch">测试敌方换宠</button>
-            </div>
-          </details>
+        <div class="fighter-hud enemy-hud">
+          <div class="hud-title"><span class="side-label">训练目标 · Lv.100</span><strong>${state.enemy.name}</strong></div>
+          <div class="hud-hp"><span>${Math.max(0, Math.round(state.enemy.hp))}/${state.enemy.maxHp}</span><div class="hp-track"><i style="width:${hpPercent(state.enemy)}%"></i></div></div>
+          <div class="enemy-status">${enemyStatuses}</div>
+        </div>
 
-          <div class="log-card">
-            <div class="log-head"><strong>战斗日志</strong><button id="clearLog">清空</button></div>
-            <div class="log-list">${state.log.slice(-8).reverse().map(line => `<p>${line}</p>`).join('')}</div>
+        <div class="combatant player-combatant ${state.player.form === 'overdrive' ? 'overdrive' : ''}">
+          <div class="aura aura-one"></div>
+          <div class="aura aura-two"></div>
+          <div class="spirit-avatar">
+            <span class="blade blade-left"></span>
+            <span class="core">✦</span>
+            <span class="blade blade-right"></span>
           </div>
-        </aside>
+          <div class="ground-ring"></div>
+          <div class="mini-stats"><span>物攻 ${state.player.attack}</span><span>魔攻 ${state.player.magic}</span><span>速 ${state.player.speed}</span></div>
+        </div>
+
+        <div class="combatant enemy-combatant">
+          <div class="dummy-orb"><span></span></div>
+          <div class="ground-ring enemy-ring"></div>
+        </div>
+
+        <div class="battle-toast">${latestLog}</div>
       </section>
 
-      <footer><span>${VERSION}</span><span>Original prototype · mobile first</span></footer>
+      <section class="battle-controls">
+        <div class="quick-actions">
+          <button id="switchBtn"><span>⇄</span>换宠</button>
+          <button id="labBtn"><span>🧪</span>Lab</button>
+          <button id="logBtn"><span>≡</span>日志</button>
+        </div>
+        <div class="skills-strip">
+          ${baseSkills.map((skill, index) => skillButton(skill, index + 1)).join('')}
+        </div>
+        <div class="ultimate-slot">${ultimateButton(currentUltimate())}</div>
+      </section>
+
+      ${renderDrawer()}
     </main>
   `
 
@@ -484,6 +499,16 @@ function handleLab(action: string) {
   render()
 }
 
+async function toggleFullscreen() {
+  try {
+    if (!document.fullscreenElement) await document.documentElement.requestFullscreen()
+    else await document.exitFullscreen()
+  } catch {
+    addLog('当前浏览器没有允许网页进入全屏。')
+    render()
+  }
+}
+
 function bindEvents() {
   document.querySelectorAll<HTMLButtonElement>('[data-skill]').forEach(button => {
     button.addEventListener('click', () => {
@@ -497,8 +522,40 @@ function bindEvents() {
     button.addEventListener('click', () => handleLab(button.dataset.lab ?? ''))
   })
 
+  document.querySelector<HTMLButtonElement>('#switchBtn')?.addEventListener('click', () => {
+    addLog('当前测试版暂无备用精灵；换宠槽位已经预留。')
+    render()
+  })
+
+  document.querySelector<HTMLButtonElement>('#labBtn')?.addEventListener('click', () => {
+    uiDrawer = 'lab'
+    render()
+  })
+
+  document.querySelector<HTMLButtonElement>('#logBtn')?.addEventListener('click', () => {
+    uiDrawer = 'log'
+    render()
+  })
+
+  document.querySelector<HTMLButtonElement>('#closeDrawer')?.addEventListener('click', () => {
+    uiDrawer = null
+    render()
+  })
+
+  document.querySelector<HTMLDivElement>('#drawerBackdrop')?.addEventListener('click', event => {
+    if (event.target === event.currentTarget) {
+      uiDrawer = null
+      render()
+    }
+  })
+
+  document.querySelector<HTMLButtonElement>('#fullscreenBtn')?.addEventListener('click', () => {
+    void toggleFullscreen()
+  })
+
   document.querySelector<HTMLButtonElement>('#resetBtn')?.addEventListener('click', () => {
     state = makeState()
+    uiDrawer = null
     render()
   })
 
