@@ -1,0 +1,38 @@
+@media (orientation: portrait) {
+  .portrait-gate {
+    cursor: pointer;
+    user-select: none;
+    touch-action: manipulation;
+  }
+
+  .portrait-gate strong,
+  .portrait-gate span {
+    display: none !important;
+  }
+
+  .portrait-gate::before {
+    content: '点击进入横屏战斗';
+    display: block;
+    margin-top: 10px;
+    font-size: clamp(1.15rem, 5vw, 1.6rem);
+    font-weight: 900;
+    color: #f4fbff;
+  }
+
+  .portrait-gate::after {
+    content: '将尝试自动全屏并锁定横屏';
+    display: block;
+    margin-top: 6px;
+    font-size: .78rem;
+    color: #8fb4cb;
+  }
+
+  .rotate-phone {
+    animation: orientationNudge 1.8s ease-in-out infinite;
+  }
+}
+
+@keyframes orientationNudge {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(90deg) scale(1.06); }
+}
