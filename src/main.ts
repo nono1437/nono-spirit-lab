@@ -3,11 +3,10 @@ import './style.css'
 type ElementType = '冰' | '钢' | '无'
 type SkillKind = '物理' | '魔法' | '辅助' | '绝招'
 type StatusId = 'taunt' | 'seal'
-type FormId = 'default' | 'war'
+type FormId = 'default' | 'overdrive'
 
 type StatusState = {
   id: StatusId
-  name: string
   turns: number
 }
 
@@ -51,34 +50,34 @@ type BattleState = {
   forceCrit: boolean
 }
 
-const VERSION = 'v0.1.0 · alpha'
+const VERSION = 'v0.1.1 · alpha'
 
 const baseSkills: Skill[] = [
   {
-    id: 'coldSlash',
-    name: '厉寒斩击',
+    id: 'frostEdge',
+    name: '寒锋',
     element: '冰',
     kind: '物理',
     power: 75,
     maxPp: 10,
-    description: '威力75 · 物理攻击 · 暴击率与暴击伤害 +50%',
+    description: '威力75 · 物理攻击 · 暴击率与暴击伤害提高',
     critBonus: 0.5,
     critDamageBonus: 0.5,
   },
   {
-    id: 'windBlade',
-    name: '凌风气刃',
+    id: 'windArc',
+    name: '风弧',
     element: '钢',
     kind: '魔法',
     power: 75,
     maxPp: 10,
-    description: '威力75 · 魔法攻击 · 暴击率与暴击伤害 +50%',
+    description: '威力75 · 魔法攻击 · 暴击率与暴击伤害提高',
     critBonus: 0.5,
     critDamageBonus: 0.5,
   },
   {
-    id: 'starLock',
-    name: '星锁',
+    id: 'lockField',
+    name: '禁制场',
     element: '钢',
     kind: '辅助',
     maxPp: 5,
@@ -86,8 +85,8 @@ const baseSkills: Skill[] = [
     applies: ['taunt', 'seal'],
   },
   {
-    id: 'purify',
-    name: '净化再生',
+    id: 'renew',
+    name: '复苏',
     element: '冰',
     kind: '辅助',
     maxPp: 3,
@@ -98,27 +97,27 @@ const baseSkills: Skill[] = [
 ]
 
 const ultimateDefault: Skill = {
-  id: 'starDomain',
-  name: '星辰战域',
+  id: 'overdrivePulse',
+  name: '超载脉冲',
   element: '冰',
   kind: '绝招',
   power: 95,
   maxPp: 3,
   priority: 1,
-  description: '先手+1 · 特殊攻击 · 暴击率+50% · 先变身战王形态再攻击',
+  description: '先手+1 · 特殊攻击 · 暴击率提高 · 先进入超载形态再攻击',
   critBonus: 0.5,
   transformBeforeHit: true,
 }
 
-const ultimateWar: Skill = {
-  id: 'endlessWar',
-  name: '无尽狂战',
+const ultimateOverdrive: Skill = {
+  id: 'finalRush',
+  name: '终幕突进',
   element: '冰',
   kind: '绝招',
   power: 95,
   maxPp: 3,
   priority: 1,
-  description: '战王形态绝招 · 先手+1 · 特殊攻击 · 暴击率+50%',
+  description: '超载形态绝招 · 先手+1 · 特殊攻击 · 暴击率提高',
   critBonus: 0.5,
 }
 
@@ -127,14 +126,14 @@ const statusMeta: Record<StatusId, { name: string; description: string }> = {
   seal: { name: '封印', description: '无法切换精灵' },
 }
 
-const initialPp = () => Object.fromEntries(
-  [...baseSkills, ultimateDefault, ultimateWar].map(skill => [skill.id, skill.maxPp]),
-)
+const allSkills = [...baseSkills, ultimateDefault, ultimateOverdrive]
+
+const initialPp = () => Object.fromEntries(allSkills.map(skill => [skill.id, skill.maxPp]))
 
 const makeState = (): BattleState => ({
   turn: 1,
   player: {
-    name: '星尘战王',
+    name: '霜曜试作体',
     maxHp: 659,
     hp: 659,
     attack: 382,
@@ -158,13 +157,12 @@ const makeState = (): BattleState => ({
     statuses: [],
   },
   pp: initialPp(),
-  log: ['训练场连接完成。星尘战王进入战斗。'],
+  log: ['训练场连接完成。试作体进入战斗。'],
   locked: false,
   forceCrit: false,
 })
 
 let state = makeState()
-
 const app = document.querySelector<HTMLDivElement>('#app')!
 
 function clamp(value: number, min: number, max: number) {
@@ -172,12 +170,7 @@ function clamp(value: number, min: number, max: number) {
 }
 
 function currentUltimate() {
-  return state.player.form === 'war' ? ultimateWar : ultimateDefault
-}
-
-function statusChip(status: StatusState) {
-  const meta = statusMeta[status.id]
-  return `<span class="status-chip" title="${meta.description}">${meta.name}<b>${status.turns}</b></span>`
+  return state.player.form === 'overdrive' ? ultimateOverdrive : ultimateDefault
 }
 
 function hpPercent(fighter: Fighter) {
@@ -185,21 +178,26 @@ function hpPercent(fighter: Fighter) {
 }
 
 function formLabel() {
-  return state.player.form === 'war' ? '战王形态' : '默认形态'
+  return state.player.form === 'overdrive' ? '超载形态' : '基础形态'
 }
 
 function passiveLabel() {
-  return state.player.form === 'war'
-    ? '圣迹：暴击率 +50%'
-    : '星瀚：每次受到伤害后恢复 6% 最大生命'
+  return state.player.form === 'overdrive'
+    ? '突破：暴击率 +50%'
+    : '回响：每次受到伤害后恢复 6% 最大生命'
+}
+
+function statusChip(status: StatusState) {
+  const meta = statusMeta[status.id]
+  return `<span class="status-chip" title="${meta.description}">${meta.name}<b>${status.turns}</b></span>`
 }
 
 function skillButton(skill: Skill, index: number) {
   const pp = state.pp[skill.id] ?? 0
-  const exhausted = pp <= 0
   const elementClass = skill.element === '冰' ? 'ice' : skill.element === '钢' ? 'steel' : 'neutral'
+  const disabled = state.locked || pp <= 0 || state.player.hp <= 0 || state.enemy.hp <= 0
   return `
-    <button class="skill-card ${elementClass} ${skill.kind === '绝招' ? 'ultimate-card' : ''}" data-skill="${skill.id}" ${exhausted || state.locked ? 'disabled' : ''}>
+    <button class="skill-card ${elementClass} ${skill.kind === '绝招' ? 'ultimate-card' : ''}" data-skill="${skill.id}" ${disabled ? 'disabled' : ''}>
       <span class="skill-index">${index}</span>
       <span class="skill-main">
         <strong>${skill.name}</strong>
@@ -229,7 +227,7 @@ function render() {
       </header>
 
       <section class="arena">
-        <article class="fighter player ${state.player.form === 'war' ? 'war' : ''}">
+        <article class="fighter player ${state.player.form === 'overdrive' ? 'war' : ''}">
           <div class="fighter-head">
             <div>
               <span class="side-label">我方</span>
@@ -257,10 +255,7 @@ function render() {
           </div>
         </article>
 
-        <div class="versus">
-          <span>VS</span>
-          <small>TRAINING</small>
-        </div>
+        <div class="versus"><span>VS</span><small>TRAINING</small></div>
 
         <article class="fighter enemy">
           <div class="fighter-head enemy-head">
@@ -286,18 +281,13 @@ function render() {
       <section class="control-panel">
         <div class="skill-panel">
           <div class="panel-title">
-            <div>
-              <span class="eyebrow">本回合操作</span>
-              <h3>选择技能</h3>
-            </div>
-            <span class="hint">点技能后，训练核心会自动反击</span>
+            <div><span class="eyebrow">本回合操作</span><h3>选择技能</h3></div>
+            <span class="hint">4技能 + 1绝招 · 训练核心会自动反击</span>
           </div>
           <div class="skills-grid">
             ${baseSkills.map((skill, index) => skillButton(skill, index + 1)).join('')}
           </div>
-          <div class="ultimate-wrap">
-            ${skillButton(currentUltimate(), 5)}
-          </div>
+          <div class="ultimate-wrap">${skillButton(currentUltimate(), 5)}</div>
         </div>
 
         <aside class="side-panel">
@@ -323,10 +313,7 @@ function render() {
         </aside>
       </section>
 
-      <footer>
-        <span>${VERSION}</span>
-        <span>Web prototype · offline-ready later</span>
-      </footer>
+      <footer><span>${VERSION}</span><span>Original prototype · mobile first</span></footer>
     </main>
   `
 
@@ -341,7 +328,7 @@ function addLog(text: string) {
 function setStatus(target: Fighter, id: StatusId, turns: number) {
   const existing = target.statuses.find(status => status.id === id)
   if (existing) existing.turns = Math.max(existing.turns, turns)
-  else target.statuses.push({ id, name: statusMeta[id].name, turns })
+  else target.statuses.push({ id, turns })
 }
 
 function tickStatuses(target: Fighter) {
@@ -354,28 +341,28 @@ function hasStatus(target: Fighter, id: StatusId) {
 }
 
 function transformPlayer(force?: FormId) {
-  const nextForm = force ?? (state.player.form === 'default' ? 'war' : 'default')
-  if (nextForm === state.player.form) return
-  state.player.form = nextForm
+  const next = force ?? (state.player.form === 'default' ? 'overdrive' : 'default')
+  if (next === state.player.form) return
+  state.player.form = next
 
-  if (nextForm === 'war') {
+  if (next === 'overdrive') {
     state.player.attack = 421
     state.player.magic = 417
     state.player.defense = 218
     state.player.magicDefense = 210
-    addLog('✦ 星尘战王完成变身：战王形态！特性切换为「圣迹」。')
+    addLog('✦ 试作体进入超载形态，暴击能力提高。')
   } else {
     state.player.attack = 382
     state.player.magic = 379
     state.player.defense = 245
     state.player.magicDefense = 234
-    addLog('星尘战王恢复默认形态，特性切换为「星瀚」。')
+    addLog('试作体恢复基础形态。')
   }
 }
 
 function rollCrit(skill: Skill) {
   const baseCrit = 0.08
-  const passive = state.player.form === 'war' ? 0.5 : 0
+  const passive = state.player.form === 'overdrive' ? 0.5 : 0
   const chance = clamp(baseCrit + (skill.critBonus ?? 0) + passive, 0, 1)
   if (state.forceCrit) {
     state.forceCrit = false
@@ -394,113 +381,76 @@ function calculateDamage(skill: Skill, crit: boolean) {
   return Math.max(1, Math.round(base * variance * critMultiplier))
 }
 
+function enemyHit(times = 1) {
+  if (state.player.hp <= 0) return
+  for (let i = 0; i < times && state.player.hp > 0; i += 1) {
+    const damage = Math.max(1, Math.round(48 + Math.random() * 24))
+    state.player.hp = Math.max(0, state.player.hp - damage)
+    addLog(`训练核心造成 ${damage} 点伤害。`)
+
+    if (state.player.form === 'default' && state.player.hp > 0) {
+      const heal = Math.round(state.player.maxHp * 0.06)
+      const before = state.player.hp
+      state.player.hp = Math.min(state.player.maxHp, state.player.hp + heal)
+      addLog(`回响触发：恢复 ${state.player.hp - before} 点生命。`)
+    }
+  }
+  if (state.player.hp <= 0) addLog('我方失去战斗能力。')
+}
+
 function playerUseSkill(skill: Skill) {
   if (state.locked || state.player.hp <= 0 || state.enemy.hp <= 0) return
   const pp = state.pp[skill.id] ?? 0
-  if (pp <= 0) {
-    addLog(`${skill.name} 已没有 PP。`)
-    render()
-    return
-  }
+  if (pp <= 0) return
 
   state.locked = true
   state.pp[skill.id] = pp - 1
   addLog(`我方使用「${skill.name}」。`)
 
-  if (skill.transformBeforeHit) transformPlayer('war')
+  if (skill.transformBeforeHit) transformPlayer('overdrive')
 
   if (skill.healPercent) {
+    if (skill.cleanseCount && state.player.statuses.length) {
+      const removed = state.player.statuses.splice(0, skill.cleanseCount)
+      addLog(`驱散：${removed.map(item => statusMeta[item.id].name).join('、')}。`)
+    }
     const before = state.player.hp
-    state.player.hp = clamp(state.player.hp + state.player.maxHp * skill.healPercent, 0, state.player.maxHp)
-    addLog(`净化再生恢复 ${Math.round(state.player.hp - before)} 点生命。`)
-  }
-
-  if (skill.cleanseCount && state.player.statuses.length) {
-    const removed = state.player.statuses.splice(0, skill.cleanseCount)
-    addLog(`驱散：${removed.map(status => status.name).join('、')}。`)
+    state.player.hp = Math.min(state.player.maxHp, state.player.hp + state.player.maxHp * skill.healPercent)
+    addLog(`恢复 ${Math.round(state.player.hp - before)} 点生命。`)
   }
 
   if (skill.applies) {
     skill.applies.forEach(id => setStatus(state.enemy, id, 2))
-    addLog('训练核心获得「挑衅」「封印」，持续 2 回合。')
+    addLog('训练核心获得：挑衅、封印（2回合）。')
   }
 
   if (skill.power) {
     const crit = rollCrit(skill)
     const damage = calculateDamage(skill, crit)
-    state.enemy.hp = clamp(state.enemy.hp - damage, 0, state.enemy.maxHp)
-    addLog(`${crit ? '💥 暴击！' : ''}${skill.name} 造成 ${damage} 点伤害。`)
+    state.enemy.hp = Math.max(0, state.enemy.hp - damage)
+    addLog(`${crit ? '暴击！' : ''}造成 ${damage} 点伤害。`)
   }
 
   if (state.enemy.hp <= 0) {
-    addLog('训练核心失去战斗能力。训练结束。')
+    addLog('训练核心失去战斗能力。')
     state.locked = false
     render()
     return
   }
 
-  window.setTimeout(() => {
-    enemyAttack(1, false)
-    endTurn()
-    state.locked = false
-    render()
-  }, 320)
-}
-
-function receiveDamage(amount: number) {
-  state.player.hp = clamp(state.player.hp - amount, 0, state.player.maxHp)
-  addLog(`训练核心造成 ${amount} 点伤害。`)
-
-  if (state.player.hp > 0 && state.player.form === 'default') {
-    const heal = Math.round(state.player.maxHp * 0.06)
-    const before = state.player.hp
-    state.player.hp = clamp(state.player.hp + heal, 0, state.player.maxHp)
-    addLog(`「星瀚」触发：本段伤害后恢复 ${Math.round(state.player.hp - before)} 点生命。`)
-  }
-}
-
-function enemyAttack(hits = 1, renderAfter = true) {
-  if (state.player.hp <= 0) return
-  const perHit = hits === 1 ? 72 : 26
-  addLog(`训练核心发动 ${hits > 1 ? `${hits} 段连续攻击` : '攻击'}。`)
-  for (let index = 0; index < hits; index += 1) {
-    if (state.player.hp <= 0) break
-    receiveDamage(perHit)
-  }
-  if (state.player.hp <= 0) addLog('星尘战王失去战斗能力。')
-  if (renderAfter) render()
-}
-
-function endTurn() {
-  tickStatuses(state.player)
+  enemyHit(1)
   tickStatuses(state.enemy)
   state.turn += 1
-}
-
-function testEnemySupport() {
-  if (hasStatus(state.enemy, 'taunt')) {
-    addLog('🚫 训练核心尝试使用辅助技能，但被「挑衅」阻止。')
-  } else {
-    addLog('训练核心成功使用辅助技能：防御提升。')
-  }
+  state.locked = false
   render()
 }
 
-function testEnemySwitch() {
-  if (hasStatus(state.enemy, 'seal')) {
-    addLog('🚫 训练核心尝试换宠，但被「封印」阻止。')
-  } else {
-    addLog('训练核心成功执行换宠（实验事件）。')
-  }
-  render()
-}
-
-function labAction(action: string) {
+function handleLab(action: string) {
   switch (action) {
     case 'heal':
       state.player.hp = state.player.maxHp
       state.enemy.hp = state.enemy.maxHp
-      addLog('Lab：双方生命已恢复。')
+      addLog('Lab：双方生命恢复至上限。')
       break
     case 'pp':
       state.pp = initialPp()
@@ -508,16 +458,16 @@ function labAction(action: string) {
       break
     case 'crit':
       state.forceCrit = !state.forceCrit
-      addLog(`Lab：强制暴击${state.forceCrit ? '已开启（仅下一次伤害技能）' : '已关闭'}。`)
+      addLog(`Lab：强制暴击 ${state.forceCrit ? '已开启' : '已关闭'}。`)
       break
     case 'transform':
       transformPlayer()
       break
     case 'hit1':
-      enemyAttack(1, false)
+      enemyHit(1)
       break
     case 'hit5':
-      enemyAttack(5, false)
+      enemyHit(5)
       break
     case 'status':
       setStatus(state.enemy, 'taunt', 2)
@@ -525,11 +475,11 @@ function labAction(action: string) {
       addLog('Lab：训练核心获得挑衅与封印。')
       break
     case 'support':
-      testEnemySupport()
-      return
+      addLog(hasStatus(state.enemy, 'taunt') ? '测试：挑衅生效，敌方无法使用辅助技能。' : '测试：敌方可以使用辅助技能。')
+      break
     case 'switch':
-      testEnemySwitch()
-      return
+      addLog(hasStatus(state.enemy, 'seal') ? '测试：封印生效，敌方无法切换精灵。' : '测试：敌方可以切换精灵。')
+      break
   }
   render()
 }
@@ -538,13 +488,13 @@ function bindEvents() {
   document.querySelectorAll<HTMLButtonElement>('[data-skill]').forEach(button => {
     button.addEventListener('click', () => {
       const id = button.dataset.skill
-      const skill = [...baseSkills, ultimateDefault, ultimateWar].find(item => item.id === id)
+      const skill = allSkills.find(item => item.id === id)
       if (skill) playerUseSkill(skill)
     })
   })
 
   document.querySelectorAll<HTMLButtonElement>('[data-lab]').forEach(button => {
-    button.addEventListener('click', () => labAction(button.dataset.lab ?? ''))
+    button.addEventListener('click', () => handleLab(button.dataset.lab ?? ''))
   })
 
   document.querySelector<HTMLButtonElement>('#resetBtn')?.addEventListener('click', () => {
