@@ -1,0 +1,19 @@
+{
+  "name": "nono Spirit Lab",
+  "short_name": "Spirit Lab",
+  "description": "nono 的原创横屏精灵回合制战斗实验场",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#08101d",
+  "theme_color": "#101a2d",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
