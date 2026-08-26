@@ -1,8 +1,19 @@
 import * as Phaser from 'phaser'
 import { BASIC_SKILLS, BattleEngine, type Skill } from './BattleEngine'
+import {
+  atlasRects,
+  emberFrameKeys,
+  emberFrameMotion,
+  emberFrames,
+  privateArena,
+  privateAssetModeEnabled,
+  privateAssetUrl,
+  privateVfx,
+} from '../privateAssets'
 
 const WIDTH = 1024
 const HEIGHT = 576
+const PRIVATE_PLAYER_SIZE = 300
 
 export class BattleScene extends Phaser.Scene {
   private engine = new BattleEngine()
@@ -19,21 +30,55 @@ export class BattleScene extends Phaser.Scene {
   private ultimatePp!: Phaser.GameObjects.Text
   private ppTexts = new Map<string, Phaser.GameObjects.Text>()
 
+  private readonly privateMode = privateAssetModeEnabled()
+  private privateAssetsReady = false
+  private privatePlayerSprite?: Phaser.GameObjects.Image
+  private privateCurrentFrame = 0
+  private privateFrameHistory: number[] = []
+  private privateVfxCursor = 0
+
   constructor() {
     super('BattleScene')
   }
 
+  preload() {
+    if (!this.privateMode) return
+
+    this.load.image('private-dream-arena', privateAssetUrl(privateArena))
+    emberFrames.forEach((file, index) => {
+      this.load.image(emberFrameKeys[index], privateAssetUrl(file))
+    })
+    this.load.image('private-vfx-slash', privateAssetUrl(privateVfx.slash))
+    this.load.image('private-vfx-impact', privateAssetUrl(privateVfx.impact))
+    this.load.image('private-vfx-magic', privateAssetUrl(privateVfx.magic))
+  }
+
   create() {
+    this.privateAssetsReady = this.privateMode && this.textures.exists(emberFrameKeys[0])
+    if (this.privateAssetsReady) this.engine.state.player.name = '炎羽凰姬'
+
     this.drawArena()
     this.drawHud()
     this.playerUnit = this.makePlayerUnit(270, 286)
     this.enemyUnit = this.makeEnemyUnit(755, 282)
     this.drawControls()
     this.refresh()
+
+    if (this.privateMode && !this.privateAssetsReady) {
+      this.showToast('私有素材模式已开启，但本机素材包未注入；已回退占位角色。')
+    }
   }
 
   private drawArena() {
     this.cameras.main.setBackgroundColor('#081321')
+
+    if (this.privateAssetsReady && this.textures.exists('private-dream-arena')) {
+      this.add.image(WIDTH / 2, HEIGHT / 2, 'private-dream-arena')
+        .setDisplaySize(WIDTH, HEIGHT)
+        .setDepth(-20)
+      this.add.rectangle(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT, 0x07101d, 0.22).setDepth(-19)
+      return
+    }
 
     const bg = this.add.graphics()
     bg.fillGradientStyle(0x102541, 0x102541, 0x24153f, 0x24153f, 1)
@@ -65,7 +110,7 @@ export class BattleScene extends Phaser.Scene {
       fontStyle: 'bold',
       color: '#70e9ff',
     })
-    this.add.text(24, 39, 'Phaser Foundation · v0.3 preview', {
+    this.add.text(24, 39, this.privateAssetsReady ? 'Phaser · private crossover build' : 'Phaser Foundation · v0.3 preview', {
       fontFamily: 'system-ui, sans-serif',
       fontSize: '12px',
       color: '#7188a5',
@@ -125,7 +170,7 @@ export class BattleScene extends Phaser.Scene {
       color: '#eaf8ff',
       backgroundColor: '#07111fcc',
       padding: { x: 16, y: 7 },
-    }).setOrigin(0.5)
+    }).setOrigin(0.5).setDepth(8)
   }
 
   private drawControls() {
@@ -135,7 +180,7 @@ export class BattleScene extends Phaser.Scene {
       this.makeSkillButton(startX + index * gap, 494, 146, 66, skill, index + 1)
     })
 
-    const ultimate = this.add.container(914, 493)
+    const ultimate = this.add.container(914, 493).setDepth(7)
     const circle = this.add.circle(0, 0, 48, 0x503165, 0.96)
       .setStrokeStyle(3, 0xffd88a, 0.9)
       .setInteractive({ useHandCursor: true })
@@ -163,6 +208,7 @@ export class BattleScene extends Phaser.Scene {
     this.makeUtilityButton(35, 470, '⇄ 换宠', () => this.showToast('当前预览暂无备用精灵'))
     this.makeUtilityButton(35, 508, '🧪 恢复', () => {
       this.engine.restoreAll()
+      if (this.privateAssetsReady) this.setPrivateFrame(0, false)
       this.refresh()
     })
     this.makeUtilityButton(35, 546, '✦ 暴击', () => {
@@ -172,7 +218,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private makeSkillButton(x: number, y: number, width: number, height: number, skill: Skill, index: number) {
-    const root = this.add.container(x, y)
+    const root = this.add.container(x, y).setDepth(7)
     const color = skill.element === '冰' ? 0x133c58 : 0x27304f
     const edge = skill.kind === '辅助' ? 0xbc8cda : 0x5bcfff
     const bg = this.add.rectangle(0, 0, width, height, color, 0.96)
@@ -212,11 +258,12 @@ export class BattleScene extends Phaser.Scene {
     const bg = this.add.rectangle(x + 55, y, 110, 30, 0x14233a, 0.92)
       .setStrokeStyle(1, 0x6d91bb, 0.42)
       .setInteractive({ useHandCursor: true })
+      .setDepth(7)
     const text = this.add.text(x + 55, y, label, {
       fontFamily: 'system-ui, sans-serif',
       fontSize: '13px',
       color: '#d9ecff',
-    }).setOrigin(0.5)
+    }).setOrigin(0.5).setDepth(8)
     bg.on('pointerdown', action)
     bg.on('pointerover', () => text.setColor('#ffffff'))
     bg.on('pointerout', () => text.setColor('#d9ecff'))
@@ -233,23 +280,27 @@ export class BattleScene extends Phaser.Scene {
       return
     }
 
+    if (this.privateAssetsReady) this.playPrivateAction(skill)
+
     if (beforeEnemyHp > this.engine.state.enemy.hp) {
-      this.tweens.add({
-        targets: this.playerUnit,
-        x: '+=72',
-        duration: 90,
-        yoyo: true,
-        ease: 'Quad.easeOut',
-      })
+      if (!this.privateAssetsReady) {
+        this.tweens.add({
+          targets: this.playerUnit,
+          x: '+=72',
+          duration: 90,
+          yoyo: true,
+          ease: 'Quad.easeOut',
+        })
+      }
       this.tweens.add({ targets: this.enemyUnit, alpha: 0.28, duration: 70, yoyo: true, repeat: 1 })
-      this.cameras.main.shake(110, 0.004)
+      this.cameras.main.shake(skill.kind === '绝招' ? 180 : 110, skill.kind === '绝招' ? 0.007 : 0.004)
     }
 
     if (beforePlayerHp > this.engine.state.player.hp) {
       this.tweens.add({ targets: this.playerUnit, alpha: 0.5, duration: 70, yoyo: true })
     }
 
-    if (skill.transformBeforeHit) {
+    if (skill.transformBeforeHit && !this.privateAssetsReady) {
       this.tweens.add({ targets: this.playerUnit, scale: 1.16, duration: 160, yoyo: true })
     }
 
@@ -278,7 +329,7 @@ export class BattleScene extends Phaser.Scene {
     const ultimate = this.engine.currentUltimate()
     this.ultimateLabel.setText(ultimate.name)
     this.ultimatePp.setText(`PP ${pp[ultimate.id]}/${ultimate.maxPp}`)
-    this.playerUnit?.setScale(player.form === 'overdrive' ? 1.08 : 1)
+    if (!this.privateAssetsReady) this.playerUnit?.setScale(player.form === 'overdrive' ? 1.08 : 1)
   }
 
   private drawHpBar(graphics: Phaser.GameObjects.Graphics, x: number, y: number, width: number, ratio: number) {
@@ -290,7 +341,17 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private makePlayerUnit(x: number, y: number) {
-    const root = this.add.container(x, y)
+    const root = this.add.container(x, y).setDepth(3)
+
+    if (this.privateAssetsReady) {
+      const ground = this.add.ellipse(0, 105, 205, 34, 0xffa43a, 0.07).setStrokeStyle(2, 0xffd36d, 0.32)
+      this.privatePlayerSprite = this.add.image(0, 0, emberFrameKeys[0]).setDisplaySize(PRIVATE_PLAYER_SIZE, PRIVATE_PLAYER_SIZE)
+      root.add([ground, this.privatePlayerSprite])
+      this.privateFrameHistory = [0]
+      this.tweens.add({ targets: root, y: y - 4, duration: 1450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
+      return root
+    }
+
     const aura = this.add.circle(0, 0, 88, 0x7beeff, 0.05).setStrokeStyle(2, 0xb488ff, 0.45)
     const aura2 = this.add.circle(0, 0, 63, 0x7338b0, 0.08).setStrokeStyle(1, 0x62ddff, 0.6)
     const left = this.add.rectangle(-38, 0, 24, 122, 0x74e7ff, 0.92).setRotation(-0.22)
@@ -310,7 +371,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private makeEnemyUnit(x: number, y: number) {
-    const root = this.add.container(x, y)
+    const root = this.add.container(x, y).setDepth(3)
     const glow = this.add.circle(0, 0, 72, 0xd76fff, 0.1)
     const orb = this.add.circle(0, 0, 58, 0x6a4b94, 1).setStrokeStyle(3, 0xffbb69, 0.58)
     const shine = this.add.circle(-20, -22, 17, 0xffdf7d, 0.9)
@@ -321,6 +382,101 @@ export class BattleScene extends Phaser.Scene {
     root.add([glow, ground, orb, shine, eye1, eye2, mouth])
     this.tweens.add({ targets: root, y: y + 8, duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' })
     return root
+  }
+
+  private playPrivateAction(skill: Skill) {
+    const frame = this.privateFrameForSkill(skill)
+    this.spawnPrivateAfterimages()
+    this.setPrivateFrame(frame, true)
+
+    if (skill.power) {
+      this.spawnPrivateVfx('slash', 760, 290, skill.kind === '绝招' ? 1.15 : 0.88)
+      this.time.delayedCall(70, () => this.spawnPrivateVfx('impact', 760, 290, skill.kind === '绝招' ? 0.9 : 0.62))
+    }
+    if (skill.kind === '辅助' || skill.kind === '魔法' || skill.kind === '绝招') {
+      this.spawnPrivateVfx('magic', skill.kind === '辅助' ? 285 : 650, 300, skill.kind === '绝招' ? 1.0 : 0.58)
+    }
+  }
+
+  private privateFrameForSkill(skill: Skill) {
+    if (skill.id === 'frostEdge') return 3
+    if (skill.id === 'windArc') return 4
+    if (skill.id === 'lockField') return 5
+    if (skill.id === 'renew') return 6
+    if (skill.id === 'overdrivePulse') return 6
+    if (skill.id === 'finalRush') return 7
+    return (this.privateCurrentFrame + 1) % emberFrameKeys.length
+  }
+
+  private setPrivateFrame(frameIndex: number, keepHistory = true) {
+    if (!this.privatePlayerSprite) return
+    const safeIndex = Phaser.Math.Clamp(frameIndex, 0, emberFrameKeys.length - 1)
+    const motion = emberFrameMotion[safeIndex]
+    this.privateCurrentFrame = safeIndex
+    this.privatePlayerSprite.setTexture(emberFrameKeys[safeIndex])
+    this.privatePlayerSprite.setPosition(motion.dx, motion.dy)
+    this.privatePlayerSprite.setRotation(motion.rotation)
+    this.privatePlayerSprite.setDisplaySize(PRIVATE_PLAYER_SIZE * motion.scale, PRIVATE_PLAYER_SIZE * motion.scale)
+
+    if (keepHistory) {
+      this.privateFrameHistory.push(safeIndex)
+      if (this.privateFrameHistory.length > 4) this.privateFrameHistory.shift()
+    } else {
+      this.privateFrameHistory = [safeIndex]
+    }
+  }
+
+  private spawnPrivateAfterimages() {
+    const recent = this.privateFrameHistory.slice(-2)
+    recent.forEach((frameIndex, order) => {
+      const motion = emberFrameMotion[frameIndex]
+      const ghost = this.add.image(
+        this.playerUnit.x + motion.dx - (recent.length - order) * 7,
+        this.playerUnit.y + motion.dy,
+        emberFrameKeys[frameIndex],
+      )
+        .setDisplaySize(PRIVATE_PLAYER_SIZE * motion.scale, PRIVATE_PLAYER_SIZE * motion.scale)
+        .setRotation(motion.rotation)
+        .setAlpha(order === recent.length - 1 ? 0.22 : 0.12)
+        .setDepth(2)
+
+      this.tweens.add({
+        targets: ghost,
+        alpha: 0,
+        duration: 390,
+        ease: 'Linear',
+        onComplete: () => ghost.destroy(),
+      })
+    })
+  }
+
+  private spawnPrivateVfx(kind: keyof typeof atlasRects, x: number, y: number, scale: number) {
+    const textureKey = `private-vfx-${kind}`
+    if (!this.textures.exists(textureKey)) return
+
+    const rects = atlasRects[kind]
+    const rect = rects[this.privateVfxCursor % rects.length]
+    this.privateVfxCursor += 1
+    const [sourceX, sourceY, sourceWidth, sourceHeight] = rect
+    const aspect = sourceWidth / sourceHeight
+    const displayHeight = 190 * scale
+    const displayWidth = displayHeight * aspect
+
+    const vfx = this.add.image(x, y, textureKey)
+      .setCrop(sourceX, sourceY, sourceWidth, sourceHeight)
+      .setDisplaySize(displayWidth, displayHeight)
+      .setAlpha(kind === 'magic' ? 0.58 : 0.78)
+      .setDepth(5)
+
+    this.tweens.add({
+      targets: vfx,
+      alpha: 0,
+      scaleX: 1.08,
+      scaleY: 1.08,
+      duration: kind === 'magic' ? 430 : 290,
+      ease: 'Quad.easeOut',
+      onComplete: () => vfx.destroy(),
+    })
   }
 
   private showToast(message: string) {
