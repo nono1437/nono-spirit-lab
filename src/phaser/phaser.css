@@ -1,0 +1,120 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #050b14;
+  color: #fff;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  touch-action: manipulation;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+#phaser-game {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(52, 140, 196, 0.14), transparent 35%),
+    radial-gradient(circle at 84% 22%, rgba(130, 66, 184, 0.16), transparent 38%),
+    #050b14;
+}
+
+#phaser-game canvas {
+  display: block;
+  max-width: 100vw;
+  max-height: 100dvh;
+  box-shadow: 0 0 80px rgba(45, 133, 197, 0.16);
+}
+
+.preview-tools {
+  position: fixed;
+  z-index: 10;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.preview-tools button {
+  pointer-events: auto;
+  border: 1px solid rgba(148, 198, 231, 0.25);
+  border-radius: 999px;
+  padding: 7px 12px;
+  color: #d8efff;
+  background: rgba(7, 17, 31, 0.72);
+  backdrop-filter: blur(12px);
+}
+
+.orientation-entry {
+  display: none;
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(76, 179, 229, 0.2), transparent 32%),
+    linear-gradient(145deg, #07111f, #140d24);
+}
+
+.orientation-card {
+  width: min(420px, 92vw);
+  padding: 30px 24px;
+  border: 1px solid rgba(139, 214, 255, 0.26);
+  border-radius: 28px;
+  background: rgba(13, 27, 47, 0.88);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+}
+
+.orientation-card .phone {
+  font-size: 48px;
+  transform: rotate(90deg);
+  margin-bottom: 16px;
+}
+
+.orientation-card h1 {
+  margin: 0 0 8px;
+  font-size: 26px;
+}
+
+.orientation-card p {
+  margin: 0 0 20px;
+  color: #91a9bf;
+  line-height: 1.6;
+}
+
+.orientation-card button {
+  width: 100%;
+  border: 0;
+  border-radius: 18px;
+  padding: 15px 18px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #04111b;
+  background: linear-gradient(135deg, #7feeff, #b98cff);
+}
+
+@media (orientation: portrait) {
+  body:not(.entered) .orientation-entry {
+    display: flex;
+  }
+}
+
+@media (display-mode: fullscreen), (display-mode: standalone) {
+  .preview-tools {
+    opacity: 0.55;
+  }
+}
